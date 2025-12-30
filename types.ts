@@ -1,12 +1,11 @@
 
 export type Category = 
-  | 'Food' 
-  | 'Transport' 
-  | 'Housing' 
-  | 'Entertainment' 
-  | 'Utilities' 
-  | 'Shopping' 
-  | 'Health' 
+  | 'Rent' 
+  | 'Savings' 
+  | 'Shop' 
+  | 'Fun' 
+  | 'Food'
+  | 'Transport'
   | 'Income'
   | 'Other';
 
@@ -34,22 +33,29 @@ export interface Transaction {
   amount: number;
   category: Category;
   type: 'expense' | 'income';
+  createdAt: number; // Added for stable sorting sequence
 }
 
-export interface SpendingData {
-  category: Category;
-  amount: number;
-  color: string;
-}
-
+// Colors updated to match the poster's vibrant palette
 export const CATEGORY_COLORS: Record<Category, string> = {
-  Food: '#f87171',
-  Transport: '#fbbf24',
-  Housing: '#34d399',
-  Entertainment: '#818cf8',
-  Utilities: '#60a5fa',
-  Shopping: '#f472b6',
-  Health: '#fb7185',
-  Income: '#10b981',
-  Other: '#94a3b8'
+  Rent: '#10b981',      // Emerald Green
+  Savings: '#fb923c',   // Vibrant Orange
+  Shop: '#60a5fa',      // Electric Blue
+  Fun: '#f43f5e',       // Soft Rose/Red
+  Food: '#f472b6',      // Pink
+  Transport: '#818cf8', // Indigo
+  Income: '#10b981',    // Emerald
+  Other: '#94a3b8'      // Slate
+};
+
+// Map categories to the poster's icons (simplified for web)
+export const CATEGORY_ICONS: Record<Category, string> = {
+  Rent: '🏠',
+  Savings: '💰',
+  Shop: '🛍️',
+  Fun: '🎮',
+  Food: '🍱',
+  Transport: '🚗',
+  Income: '📈',
+  Other: '✨'
 };

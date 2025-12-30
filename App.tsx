@@ -1,11 +1,10 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Transaction, Category, CurrencyCode, CURRENCIES } from './types';
+import { Transaction, Category, CurrencyCode, CURRENCIES, CATEGORY_COLORS, CATEGORY_ICONS } from './types';
 import TransactionForm from './components/TransactionForm';
 import Scanner from './components/Scanner';
 import SpendingCanvas from './components/SpendingCanvas';
 import TransactionModal from './components/TransactionModal';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -35,18 +34,32 @@ const App: React.FC = () => {
     minimumFractionDigits: 2
   });
 
-  // Memoized sorted transactions - Latest date first
   const sortedTransactions = useMemo(() => {
-    return [...transactions].sort((a, b) => b.date.localeCompare(a.date));
+    return [...transactions].sort((a, b) => {
+      const dateDiff = b.date.localeCompare(a.date);
+      if (dateDiff !== 0) return dateDiff;
+      // Secondary sort: Use createdAt to maintain insertion sequence for same-day transactions
+      return b.createdAt - a.createdAt;
+    });
   }, [transactions]);
 
-  const addTransaction = (t: Omit<Transaction, 'id'>) => {
-    const newTransaction = { ...t, id: Math.random().toString(36).substr(2, 9) };
+  const addTransaction = (t: Omit<Transaction, 'id' | 'createdAt'>) => {
+    const newTransaction: Transaction = { 
+      ...t, 
+      id: Math.random().toString(36).substr(2, 9),
+      createdAt: Date.now() 
+    };
     setTransactions(prev => [newTransaction, ...prev]);
   };
 
-  const addManyTransactions = (ts: Omit<Transaction, 'id'>[]) => {
-    const newOnes = ts.map(t => ({ ...t, id: Math.random().toString(36).substr(2, 9) }));
+  const addManyTransactions = (ts: Omit<Transaction, 'id' | 'createdAt'>[]) => {
+    // Generate timestamps in order to preserve the sequence from the scanner
+    const now = Date.now();
+    const newOnes: Transaction[] = ts.map((t, index) => ({ 
+      ...t, 
+      id: Math.random().toString(36).substr(2, 9),
+      createdAt: now + index // Tiny offset to preserve sequence
+    }));
     setTransactions(prev => [...newOnes, ...prev]);
   };
 
@@ -60,21 +73,18 @@ const App: React.FC = () => {
     return { income, expenses, balance: income - expenses };
   }, [transactions]);
 
-  const chartData = useMemo(() => {
-    const daily: Record<string, number> = {};
+  const categorySpending = useMemo(() => {
+    const totals: Record<string, number> = {};
     transactions.forEach(t => {
       if (t.type === 'expense') {
-        daily[t.date] = (daily[t.date] || 0) + t.amount;
+        totals[t.category] = (totals[t.category] || 0) + t.amount;
       }
     });
-    return Object.entries(daily)
-      .map(([date, amount]) => ({ date, amount }))
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .slice(-14);
+    return totals;
   }, [transactions]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-12">
+    <div className="min-h-screen bg-[#FDFDFF] text-slate-900 pb-20 font-sans">
       <TransactionModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
@@ -83,186 +93,183 @@ const App: React.FC = () => {
         currencyCode={currencyCode}
       />
 
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-1 cursor-pointer" onClick={() => window.location.reload()}>
-            <span className="text-2xl font-bold tracking-tighter text-slate-800">M</span>
-            <div className="relative w-6 h-6 flex items-center justify-center">
-              <div className="absolute inset-0 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]"></div>
-              <div className="relative z-10 w-[2px] h-3 bg-white/80 rounded-full"></div>
-              {/* Sparkle effect mimicking the logo */}
-              <div className="absolute top-1 right-1 w-1 h-1 bg-white rounded-full"></div>
-            </div>
-            <span className="text-2xl font-bold tracking-tighter text-slate-800">ni</span>
+      {/* Modern Header */}
+      <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between border-b border-slate-100">
+        <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.location.reload()}>
+          <span className="text-3xl font-extrabold tracking-tighter text-[#1F2937]">M</span>
+          <div className="relative w-8 h-8 flex items-center justify-center">
+            <div className="absolute inset-0 bg-emerald-400 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)]"></div>
+            <div className="relative z-10 w-[3px] h-4 bg-white/90 rounded-full"></div>
+            <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-white rounded-full blur-[0.5px]"></div>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="relative group">
-              <select 
-                value={currencyCode}
-                onChange={(e) => setCurrencyCode(e.target.value as CurrencyCode)}
-                className="bg-slate-100 border-none rounded-lg text-sm font-semibold px-3 py-1.5 focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer pr-8"
-              >
-                {Object.values(CURRENCIES).map(curr => (
-                  <option key={curr.code} value={curr.code}>{curr.code} ({curr.symbol})</option>
-                ))}
-              </select>
-              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-            </div>
-
-            <div className="hidden md:flex items-center gap-6">
-              <button onClick={() => setIsModalOpen(true)} className="text-sm font-medium text-slate-600 hover:text-emerald-600 transition-colors">
-                Transactions
-              </button>
-              <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
-                 <div className="w-4 h-4 bg-emerald-500 rounded-full opacity-50"></div>
-              </div>
+          <span className="text-3xl font-extrabold tracking-tighter text-[#1F2937]">ni</span>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <select 
+              value={currencyCode}
+              onChange={(e) => setCurrencyCode(e.target.value as CurrencyCode)}
+              className="bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold px-4 py-2 focus:ring-2 focus:ring-emerald-400 appearance-none cursor-pointer pr-10 shadow-sm"
+            >
+              {Object.values(CURRENCIES).map(curr => (
+                <option key={curr.code} value={curr.code}>{curr.code}</option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </div>
           </div>
+          <button onClick={() => setIsModalOpen(true)} className="p-2 bg-slate-900 text-white rounded-2xl hover:scale-105 transition-transform">
+             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" /></svg>
+          </button>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto px-4 mt-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="max-w-7xl mx-auto px-6 mt-8 space-y-10">
+        
+        {/* Top Hero Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           
-          <div className="lg:col-span-4 space-y-6">
-            <div className="bg-emerald-600 p-6 rounded-3xl text-white shadow-xl shadow-emerald-100 relative overflow-hidden">
-              <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
-              
-              <p className="text-emerald-100 text-sm font-medium uppercase tracking-wider mb-1 relative z-10">Total Balance</p>
-              <h2 className="text-4xl font-bold mb-6 relative z-10">
-                {formatter.format(stats.balance)}
-              </h2>
-              
-              <div className="grid grid-cols-2 gap-4 relative z-10">
-                <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-sm">
-                  <p className="text-xs text-emerald-100 mb-1">Income</p>
-                  <p className="text-lg font-semibold">{currency.symbol}{stats.income.toLocaleString()}</p>
-                </div>
-                <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-sm">
-                  <p className="text-xs text-emerald-100 mb-1">Expenses</p>
-                  <p className="text-lg font-semibold">{currency.symbol}{stats.expenses.toLocaleString()}</p>
-                </div>
+          {/* Main Balance Card */}
+          <div className="lg:col-span-1 bg-gradient-to-br from-emerald-500 to-emerald-600 p-8 rounded-[2.5rem] text-white shadow-2xl shadow-emerald-200 relative overflow-hidden h-full min-h-[340px] flex flex-col justify-center">
+            <div className="absolute -right-12 -top-12 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
+            <div className="absolute -left-12 -bottom-12 w-48 h-48 bg-emerald-400/20 rounded-full blur-3xl"></div>
+            
+            <p className="text-emerald-100 text-sm font-bold uppercase tracking-[0.2em] mb-2 relative z-10">Balance Available</p>
+            <h2 className="text-5xl font-black mb-8 relative z-10 tracking-tight">
+              {formatter.format(stats.balance)}
+            </h2>
+            
+            <div className="grid grid-cols-2 gap-4 relative z-10">
+              <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-md border border-white/5">
+                <p className="text-[10px] uppercase font-black text-emerald-100 mb-1">Income</p>
+                <p className="text-xl font-bold">+{currency.symbol}{stats.income.toLocaleString()}</p>
+              </div>
+              <div className="bg-white/10 p-4 rounded-3xl backdrop-blur-md border border-white/5">
+                <p className="text-[10px] uppercase font-black text-emerald-100 mb-1">Spend</p>
+                <p className="text-xl font-bold">-{currency.symbol}{stats.expenses.toLocaleString()}</p>
               </div>
             </div>
-
-            <TransactionForm onAdd={addTransaction} currencyCode={currencyCode} />
-            <Scanner onAddMany={addManyTransactions} />
           </div>
 
-          <div className="lg:col-span-8 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <SpendingCanvas transactions={transactions} currencyCode={currencyCode} />
-              
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 h-[400px] flex flex-col">
-                <h3 className="text-slate-500 text-sm font-medium uppercase tracking-wider mb-4">Daily Spendings ({currency.symbol})</h3>
-                <div className="flex-1 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis 
-                        dataKey="date" 
-                        axisLine={false} 
-                        tickLine={false} 
-                        tick={{fontSize: 10, fill: '#94a3b8'}}
-                        tickFormatter={(val) => val.split('-').slice(1).join('/')}
-                      />
-                      <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
-                      <Tooltip 
-                        formatter={(value) => [`${currency.symbol}${value}`, 'Amount']}
-                        contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'}}
-                        cursor={{fill: '#f8fafc'}}
-                      />
-                      <Bar dataKey="amount" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+          {/* Activity Replacement: Recent Activity Section */}
+          <div className="lg:col-span-2 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden min-h-[340px] flex flex-col">
+            <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
+              <h3 className="font-black text-slate-800 tracking-tight text-lg">Recent Activity</h3>
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="px-4 py-2 bg-white border border-slate-100 rounded-xl text-xs font-bold text-emerald-600 shadow-sm hover:bg-emerald-50 transition-colors"
+              >
+                View History
+              </button>
             </div>
-
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-semibold text-slate-800">Recent Transactions</h3>
-                <button 
-                  onClick={() => setIsModalOpen(true)}
-                  className="text-sm text-emerald-600 font-medium hover:text-emerald-700 flex items-center gap-1 group"
-                >
-                  View All
-                  <svg className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-slate-50/50">
-                      <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">Description</th>
-                      <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider">Category</th>
-                      <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider text-right">Amount</th>
-                      <th className="px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wider text-right"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {sortedTransactions.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                          No transactions found.
-                        </td>
-                      </tr>
-                    ) : (
-                      sortedTransactions.slice(0, 5).map((t) => (
-                        <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
-                          <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap mono">
-                            {t.date}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-sm font-medium text-slate-800 block">{t.description}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                              {t.category}
-                            </span>
-                          </td>
-                          <td className={`px-6 py-4 text-sm font-semibold text-right whitespace-nowrap ${t.type === 'income' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                            {t.type === 'income' ? '+' : '-'}{formatter.format(t.amount)}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <button 
-                              onClick={() => deleteTransaction(t.id)}
-                              className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              {sortedTransactions.length > 5 && (
-                <div className="px-6 py-4 bg-slate-50 text-center">
-                  <button 
-                    onClick={() => setIsModalOpen(true)}
-                    className="text-sm font-medium text-slate-500 hover:text-slate-800"
-                  >
-                    + {sortedTransactions.length - 5} more transactions. <span className="text-emerald-600">View all</span>
-                  </button>
+            <div className="flex-1 divide-y divide-slate-50 overflow-y-auto">
+              {sortedTransactions.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <p className="text-slate-400 font-medium italic">No recent transactions.</p>
                 </div>
+              ) : (
+                sortedTransactions.slice(0, 4).map((t) => (
+                  <div key={t.id} className="px-8 py-5 flex items-center justify-between hover:bg-slate-50/30 transition-colors group">
+                    <div className="flex items-center gap-4">
+                      <div 
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-sm"
+                        style={{ backgroundColor: `${CATEGORY_COLORS[t.category]}10` }}
+                      >
+                        {CATEGORY_ICONS[t.category]}
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-slate-800">{t.description}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{t.category} • {t.date}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className={`text-sm font-black ${t.type === 'income' ? 'text-emerald-500' : 'text-slate-900'}`}>
+                          {t.type === 'income' ? '+' : '-'}{formatter.format(t.amount)}
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => deleteTransaction(t.id)}
+                        className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                        title="Delete Transaction"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
           </div>
+        </div>
 
+        {/* Categories Section */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-2xl font-black tracking-tight text-slate-800">Budget Categories</h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Target: 80% used</p>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
+            {['Rent', 'Savings', 'Shop', 'Fun'].map((cat) => {
+              const amount = categorySpending[cat] || 0;
+              const color = CATEGORY_COLORS[cat as Category];
+              const icon = CATEGORY_ICONS[cat as Category];
+              const progress = Math.min((amount / 5000) * 100, 100);
+
+              return (
+                <div key={cat} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md transition-shadow group cursor-pointer">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div 
+                      className="w-16 h-16 rounded-3xl flex items-center justify-center text-3xl shadow-inner transition-transform group-hover:scale-110"
+                      style={{ backgroundColor: `${color}15`, color: color }}
+                    >
+                      {icon}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-800">{cat}</h4>
+                      <p className="text-xs font-bold text-slate-400 mt-0.5">{formatter.format(amount)}</p>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-50 rounded-full overflow-hidden mt-2">
+                       <div 
+                        className="h-full rounded-full transition-all duration-1000" 
+                        style={{ width: `${progress}%`, backgroundColor: color }}
+                       />
+                    </div>
+                    <div className="flex justify-between w-full text-[10px] font-bold text-slate-400">
+                       <span>{Math.round(progress)}%</span>
+                       <span>LIMIT</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Tools and Main Visualization Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          <div className="lg:col-span-4 space-y-8">
+            <Scanner onAddMany={addManyTransactions} />
+            <TransactionForm onAdd={addTransaction} currencyCode={currencyCode} />
+          </div>
+
+          <div className="lg:col-span-8">
+            <SpendingCanvas transactions={transactions} currencyCode={currencyCode} />
+          </div>
         </div>
       </main>
+
+      {/* Subtle background decoration */}
+      <div className="fixed bottom-0 right-0 w-[40vw] h-[40vw] bg-emerald-100/20 rounded-full blur-[120px] -z-10 pointer-events-none"></div>
+      <div className="fixed top-20 left-0 w-[30vw] h-[30vw] bg-blue-100/20 rounded-full blur-[100px] -z-10 pointer-events-none"></div>
     </div>
   );
 };

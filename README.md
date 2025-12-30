@@ -1,7 +1,6 @@
-Moni isn't just an app; it's your smart financial shadow—always tracking, always helping
-
-<img width="1344" height="768" alt="Moni Poster" src="https://github.com/user-attachments/assets/69e8933d-426e-423b-b382-c7169ef1381b" />
-
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
 
 # Run and deploy your AI Studio app
 

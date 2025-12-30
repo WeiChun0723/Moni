@@ -4,7 +4,7 @@ import { extractTransactionsFromStatement } from '../services/geminiService';
 import { Transaction } from '../types';
 
 interface Props {
-  onAddMany: (transactions: Omit<Transaction, 'id'>[]) => void;
+  onAddMany: (transactions: Omit<Transaction, 'id' | 'createdAt'>[]) => void;
 }
 
 const Scanner: React.FC<Props> = ({ onAddMany }) => {
@@ -35,7 +35,7 @@ const Scanner: React.FC<Props> = ({ onAddMany }) => {
             amount: Math.abs(r.amount || 0),
             category: (r.category as any) || 'Other',
             type: r.type || 'expense'
-          })) as Omit<Transaction, 'id'>[];
+          })) as Omit<Transaction, 'id' | 'createdAt'>[];
           
           onAddMany(cleaned);
         } else {

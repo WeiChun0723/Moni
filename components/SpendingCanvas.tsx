@@ -1,7 +1,16 @@
 
-import React, { useEffect, useRef } from 'react';
-import * as d3 from 'd3';
-import { Transaction, CATEGORY_COLORS, Category, CurrencyCode, CURRENCIES } from '../types';
+import React, { useMemo } from 'react';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  Legend
+} from 'recharts';
+import { Transaction, CurrencyCode, CURRENCIES } from '../types';
 
 interface Props {
   transactions: Transaction[];
@@ -9,73 +18,116 @@ interface Props {
 }
 
 const SpendingCanvas: React.FC<Props> = ({ transactions, currencyCode }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const currency = CURRENCIES[currencyCode];
 
-  useEffect(() => {
-    if (!canvasRef.current || transactions.length === 0) return;
+  const chartData = useMemo(() => {
+    const dailyData: Record<string, { date: string; expense: number; income: number }> = {};
+    
+    // Sort transactions to get date range
+    const sorted = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
+    if (sorted.length === 0) return [];
 
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-    if (!context) return;
+    const start = new Date(sorted[0].date);
+    const end = new Date(sorted[sorted.length - 1].date);
+    
+    // Initialize all dates in range to avoid gaps
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      dailyData[dateStr] = { date: dateStr, expense: 0, income: 0 };
+    }
 
-    const width = canvas.width;
-    const height = canvas.height;
-
-    // Process data
-    const categoryTotals = transactions.reduce((acc, t) => {
+    transactions.forEach(t => {
+      if (!dailyData[t.date]) return;
       if (t.type === 'expense') {
-        acc[t.category] = (acc[t.category] || 0) + t.amount;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-
-    const data = Object.entries(categoryTotals).map(([name, value]) => ({
-      name,
-      value,
-      color: CATEGORY_COLORS[name as Category] || '#ccc'
-    }));
-
-    // Bubble layout
-    const pack = d3.pack().size([width, height]).padding(10);
-    const root = d3.hierarchy({ children: data } as any).sum((d: any) => d.value);
-    const nodes = pack(root).leaves();
-
-    context.clearRect(0, 0, width, height);
-
-    nodes.forEach((node: any) => {
-      context.beginPath();
-      context.arc(node.x, node.y, node.r, 0, 2 * Math.PI);
-      context.fillStyle = node.data.color;
-      context.globalAlpha = 0.8;
-      context.fill();
-      
-      context.strokeStyle = 'white';
-      context.lineWidth = 2;
-      context.stroke();
-
-      if (node.r > 20) {
-        context.globalAlpha = 1;
-        context.fillStyle = '#1e293b';
-        context.font = 'bold 12px Inter';
-        context.textAlign = 'center';
-        context.fillText(node.data.name, node.x, node.y);
-        context.font = '10px Inter';
-        context.fillText(`${currency.symbol}${node.data.value.toFixed(0)}`, node.x, node.y + 14);
+        dailyData[t.date].expense += t.amount;
+      } else {
+        dailyData[t.date].income += t.amount;
       }
     });
 
-  }, [transactions, currencyCode]);
+    return Object.values(dailyData).sort((a, b) => a.date.localeCompare(b.date));
+  }, [transactions]);
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-100 font-bold text-xs space-y-1">
+          <p className="text-slate-400 uppercase tracking-widest mb-2">{label}</p>
+          {payload.map((entry: any) => (
+            <div key={entry.name} className="flex items-center justify-between gap-4">
+              <span style={{ color: entry.color }}>{entry.name.toUpperCase()}</span>
+              <span className="text-slate-900">{currency.symbol}{entry.value.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
-    <div className="relative bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col items-center">
-      <h3 className="text-slate-500 text-sm font-medium uppercase tracking-wider mb-4 w-full">Expense Distribution Canvas</h3>
-      <canvas 
-        ref={canvasRef} 
-        width={600} 
-        height={400} 
-        className="max-w-full h-auto"
-      />
+    <div className="relative bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8 flex flex-col items-center overflow-hidden h-full min-h-[400px]">
+      <div className="w-full flex justify-between items-center mb-8">
+        <div>
+          <h3 className="text-slate-800 text-lg font-black tracking-tight uppercase tracking-[0.1em]">Cash Flow Trend</h3>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Income vs Expenses over time</p>
+        </div>
+        <div className="flex gap-2">
+           <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+              <span className="text-[10px] font-black text-slate-400 uppercase">Income</span>
+           </div>
+           <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+              <span className="text-[10px] font-black text-slate-400 uppercase">Spend</span>
+           </div>
+        </div>
+      </div>
+      
+      <div className="flex-1 w-full h-full">
+        {chartData.length === 0 ? (
+          <div className="h-full flex items-center justify-center text-slate-300 font-medium italic">
+            Add data to see trends
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+              <XAxis 
+                dataKey="date" 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}}
+                tickFormatter={(val) => val.split('-').slice(2).join('/')}
+              />
+              <YAxis 
+                axisLine={false} 
+                tickLine={false} 
+                tick={{fontSize: 10, fontWeight: 700, fill: '#94a3b8'}}
+              />
+              <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#F1F5F9', strokeWidth: 2 }} />
+              <Line 
+                type="monotone" 
+                dataKey="income" 
+                name="Income"
+                stroke="#10b981" 
+                strokeWidth={4} 
+                dot={false}
+                activeDot={{ r: 6, strokeWidth: 0, fill: '#10b981' }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="expense" 
+                name="Expense"
+                stroke="#f43f5e" 
+                strokeWidth={4} 
+                dot={false}
+                activeDot={{ r: 6, strokeWidth: 0, fill: '#f43f5e' }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
     </div>
   );
 };
