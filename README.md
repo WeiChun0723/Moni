@@ -1,5 +1,8 @@
 Moni isn't just an app; it's your smart financial shadow—always tracking, always helping
 
+![Moni](https://github.com/user-attachments/assets/6b62d8c0-4817-45a8-be4b-ebefe26f525c)
+
+
 # Run and deploy your AI Studio app
 
 This contains everything you need to run your app locally.
