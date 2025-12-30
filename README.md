@@ -1,6 +1,7 @@
 Moni isn't just an app; it's your smart financial shadow—always tracking, always helping
 
-![Moni](https://github.com/user-attachments/assets/6b62d8c0-4817-45a8-be4b-ebefe26f525c)
+
+<img width="1424" height="736" alt="Gemini_Generated_Image_u29we9u29we9u29w" src="https://github.com/user-attachments/assets/ed278060-ccfb-4f6a-b203-c5a8aa74aeef" />
 
 
 # Run and deploy your AI Studio app
