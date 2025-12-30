@@ -1,0 +1,7 @@
+{
+  "name": "Moni",
+  "description": "A sophisticated personal finance tracker featuring manual entry, AI-powered statement extraction, and interactive data visualizations.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
